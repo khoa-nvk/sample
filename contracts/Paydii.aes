@@ -1,0 +1,70 @@
+
+@compiler >= 6
+
+include "String.aes"
+
+contract Paydii =
+
+    record state =
+        { index         : int
+        , products  : map(string, product)
+        , products_by_seller: map(address, list(string)) }
+
+    record product = {
+        id: string,
+        number_no: int,
+        name: string,
+        price: int,
+        seller: address
+        }
+
+    stateful entrypoint init() = 
+        {   products = {},
+            products_by_seller = {},
+            index = 1 }
+    
+    public stateful entrypoint create_product(id: string, name: string, price: int) : string = 
+        // require(product_exists(id), "There is no hamster with that name!")
+        let new_product : product = {
+            id = id,
+            name = name,
+            price = price,
+            number_no = state.index,
+            seller = Call.caller
+            }
+        // add product
+        put(state{products[id] = new_product})
+        put(state{index = (state.index + 1)})
+
+        // add product by seller 
+        if (Map.lookup(Call.caller,state.products_by_seller) == None)
+            put(state{products_by_seller[Call.caller] = [id] })
+        else 
+            let current_product_ids = state.products_by_seller[Call.caller]
+            let new_list = List.insert_at(List.length(current_product_ids) - 1,id,current_product_ids)
+            put(state{products_by_seller[Call.caller] = new_list })        
+        new_product.id
+    
+    entrypoint get_seller_products(seller: address) : list(string) =  
+        if (Map.lookup(seller,state.products_by_seller) == None)
+            []
+        else 
+            state.products_by_seller[seller]
+
+
+    entrypoint get_product(id: string) : product =
+        require(product_exists(id), "There is no product with this id")
+        let return_product : product = state.products[id]
+        return_product
+
+
+    
+    entrypoint product_exists(id: string) : bool =
+        Map.member(id, state.products)
+
+    // entrypoint get_hamster_dna(name: string, test: option(int)) : int =
+    //     require(name_exists(name), "There is no hamster with that name!")
+
+    //     let needed_hamster : hamster = state.map_hamsters[name]
+
+    //     needed_hamster.dna
