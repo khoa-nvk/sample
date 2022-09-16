@@ -1,0 +1,116 @@
+@compiler >= 6
+
+include "String.aes"
+
+payable contract Desplitly =
+    // TODO: check active product status, add statistic, unit test  
+
+    record state =
+        { index         : int,
+          expenses: map(string, expense), 
+          my_expenses: map(address,list(string)),
+          mutal_expenses: map(mutual_expense_key,mutal_expense)
+        } 
+    
+    record expense = {
+        id: string,
+        creator: address,
+        name: string,
+        img: string,
+        description: string,
+        total: int,
+        receive: int,
+        date: string,
+        status: bool }
+    
+    record mutal_expense = {
+        paid: bool,
+        amount: int, 
+        expense_id: string, 
+        creator: address,
+        sharer: address }
+
+    record mutual_expense_key = {
+        expense_id: string, 
+        creator: address,
+        sharer: address }
+
+    record sharer_detail = {
+        sharer: address,
+        owned_amount: int }
+
+    stateful entrypoint init() = 
+        {   expenses = {},
+            my_expenses = {},
+            mutal_expenses = {},
+            index = 1 
+            }
+
+    public stateful entrypoint create_expense(id: string, name: string, description: string, img: string, date: string, total: int) : expense =
+        let new_expense = {
+            id = id,
+            creator = Call.caller,
+            name = name,
+            img = img,
+            description = description,
+            total = total,
+            receive = 0,
+            date = date,
+            status = true  }
+        put(state{ expenses[id] = new_expense})
+
+        // create product for the first time
+        if (Map.lookup(Call.caller,state.my_expenses) == None)
+            put(state{my_expenses[Call.caller] = [id] })
+        else 
+            let current_expenses = state.my_expenses[Call.caller]
+            let new_expense_list = List.insert_at(List.length(current_expenses) - 1,id,current_expenses)
+            put(state{my_expenses[Call.caller] = new_expense_list })        
+
+        new_expense
+
+    public stateful entrypoint add_mutual_expense(expense_id: string, sharer: address, owned_amount: int) : mutal_expense = 
+        // only expense's creator can create this
+        let new_mutual_expense_key = {
+            expense_id = expense_id,
+            creator = Call.caller,
+            sharer = sharer }
+        let new_mutal_expense = { 
+            paid = false,
+            amount = owned_amount, 
+            expense_id = expense_id, 
+            creator = Call.caller,
+            sharer = sharer }
+        put(state { mutal_expenses[new_mutual_expense_key] = new_mutal_expense })
+        // create product for the first time
+        if (Map.lookup(Call.caller,state.my_expenses) == None)
+            put(state{my_expenses[Call.caller] = [expense_id] })
+        else 
+            let current_expenses = state.my_expenses[Call.caller]
+            let new_expense_list = List.insert_at(List.length(current_expenses) - 1, expense_id ,current_expenses)
+            put(state{my_expenses[Call.caller] = new_expense_list })       
+        new_mutal_expense
+    
+    entrypoint get_mutual_expense(expense_id: string, creator: address, sharer: address) : mutal_expense =
+        let current_mutual_expense_key = {
+            expense_id = expense_id,
+            creator = creator,
+            sharer = sharer }
+        let return_mututal_expense : mutal_expense = state.mutal_expenses[current_mutual_expense_key]
+        return_mututal_expense
+
+    entrypoint get_expense(id: string) : expense =
+        require(expense_exist(id), "There is no expense with this id")
+        let return_expense : expense = state.expenses[id]
+        return_expense
+    
+    entrypoint get_my_expense(user: address) : list(expense) =  
+        if (Map.lookup(user,state.my_expenses) == None)
+            []
+        else 
+            state.my_expenses[user]
+
+    entrypoint expense_exist(id: string) : bool =
+        Map.member(id, state.expenses)
+
+  
