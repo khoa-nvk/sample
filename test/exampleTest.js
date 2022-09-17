@@ -75,5 +75,51 @@ describe('DeMarketly contract', () => {
         assert.equal(createProduct.decodedResult, PRODUCT_ID_1);
     });
 
-   
+    
+    it(`Buy product fail because product is not exist`, async() => {
+        const createProduct = await contract.methods.create_product(PRODUCT_ID_1, "name", 2000000000000000000, "description", "image", true, {onAccount: ownerAccount});
+        await assertNode.rejects(contract.methods.buy_product(PRODUCT_ID_2, false, "" , {onAccount: nonOwnerAccount}), (err) => {
+            assert.include(err.message, "Product with this id is not exist");
+            return true;
+        }); 
+    });
+    it(`Buy product fail because double buying 1 product`, async() => {
+        const createProduct = await contract.methods.create_product(PRODUCT_ID_1, "name", 2000000000000000000, "description", "image", true, {onAccount: ownerAccount});
+        await assertNode.rejects(contract.methods.buy_product(PRODUCT_ID_1, false, "" , {onAccount: nonOwnerAccount}), (err) => {
+            assert.include(err.message, "You already bought this product!");
+            return true;
+        }); 
+    });
+    it(`Buy product fail because product is inactive`, async() => {
+        const createProduct = await contract.methods.create_product(PRODUCT_ID_1, "name", 2000000000000000000, "description", "image", true, {onAccount: ownerAccount});
+        // turn product into inactive
+        const updateProduct = await contract.methods.update_product(PRODUCT_ID_1, "name", 2000000000000000000, "description", "image", false, {onAccount: ownerAccount});
+        await assertNode.rejects(contract.methods.buy_product(PRODUCT_ID_1, false, "" , {onAccount: nonOwnerAccount}), (err) => {
+            assert.include(err.message, "Product is in-active");
+            return true;
+        }); 
+    });
+    it(`Buy product fail because of self-buying`, async() => {
+        const createProduct = await contract.methods.create_product(PRODUCT_ID_1, "name", 2000000000000000000, "description", "image", true, {onAccount: ownerAccount});
+        await assertNode.rejects(contract.methods.buy_product(PRODUCT_ID_1, false, "" , {onAccount: ownerAccount}), (err) => {
+            assert.include(err.message, "You can't buy your own product");
+            return true;
+        }); 
+    });
+
+    it(`Buy product success`, async() => {
+        const createProduct = await contract.methods.create_product(PRODUCT_ID_1, "name", 2000000000000000000, "description", "image", true, {onAccount: ownerAccount});
+        const buyProduct = await contract.methods.buy_product(PRODUCT_ID_1, false, "" , {onAccount: nonOwnerAccount, amount: 2000000000000000000});       
+        assert.equal(buyProduct.decodedResult, false)
+    });
+
+    // TODO: buy-product-with-coupon fail because this coupon is all used
+
+    it(`create-coupon fail because of non-exist products`, async() => {
+        const createProduct = await contract.methods.create_product(PRODUCT_ID_1, "name", 2000000000000000000, "description", "image", true, {onAccount: ownerAccount});
+        const buyProduct = await contract.methods.buy_product(PRODUCT_ID_1, false, "" , {onAccount: nonOwnerAccount, amount: 2000000000000000000});       
+        assert.equal(buyProduct.decodedResult, false)
+    });
+
+
 });
